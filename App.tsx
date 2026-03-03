@@ -110,21 +110,13 @@ const App: React.FC = () => {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
-        const userData = {
-          id: session.user.id,
-          username: session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || 'User',
-          isPinEnabled: false
-        };
-        setCurrentUser(userData as User);
-
-        // Ambil PIN dari tabel settings
+        // 1. Ambil data settings (PIN)
         const { data: settings } = await supabase
           .from('notekita_settings')
           .select('app_pin')
           .eq('user_id', session.user.id)
           .single();
 
-        // Susun objek user lengkap dengan status PIN
         const updatedUser: User = {
           id: session.user.id,
           username: session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || 'User',
@@ -135,16 +127,23 @@ const App: React.FC = () => {
 
         if (settings?.app_pin) {
           setAppPin(settings.app_pin);
-          if (!hasUnlockedSession) {
+          // Cek status unlock langsung dari storage untuk menentukan status LockScreen
+          const isUnlocked = sessionStorage.getItem("notekita_unlocked") === "true";
+          if (!isUnlocked) {
             setIsLocked(true);
           }
         }
-        const { data: userNotes } = await supabase
+
+        // 2. Muat Catatan dengan penanganan error
+        const { data: userNotes, error: notesError } = await supabase
           .from('notekita_notes')
           .select('*')
           .order('updated_at', { ascending: false });
 
-        if (userNotes) {
+        if (notesError) {
+          console.error("Gagal memuat catatan:", notesError);
+          setNotes([]);
+        } else if (userNotes) {
           setNotes(userNotes.map(n => ({
             id: n.id,
             title: n.title,
@@ -156,14 +155,16 @@ const App: React.FC = () => {
           })));
         }
       } else {
+        // 3. Reset Total: Bersihkan semua state saat sesi kadaluarsa atau logout
         setCurrentUser(null);
+        setNotes([]);
         setIsLocked(false);
       }
       setIsDataLoaded(true);
     });
 
     return () => subscription.unsubscribe();
-  }, [hasUnlockedSession]);
+  }, []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
