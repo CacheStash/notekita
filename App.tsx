@@ -367,7 +367,16 @@ if (isAuthLoading) {
         return sortOrder === 'desc' ? comparison : -comparison;
       });
   }, [notes, filter, searchQuery, sortBy, sortOrder]);
-
+if (isAuthLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-zinc-950 text-white">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
+          <p className="text-xs font-bold tracking-widest text-zinc-500 uppercase">Memulihkan Sesi...</p>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className={`min-h-screen transition-colors duration-300 ${theme === 'dark' ? 'bg-zinc-950 text-zinc-100' : 'bg-slate-50 text-slate-900'}`}>
       
@@ -618,6 +627,7 @@ if (isAuthLoading) {
         <AuthModal
           onLogin={() => {
             setIsAuthModalOpen(false);
+            // Sesi akan ditangkap otomatis oleh useEffect listener
           }}
           onClose={() => setIsAuthModalOpen(false)}
         />
