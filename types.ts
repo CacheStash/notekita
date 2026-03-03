@@ -20,7 +20,9 @@ export interface User {
   id: string;
   username: string;
   isPinEnabled: boolean;
+  
   pin?: string;
+  isContentHidden: boolean;
 }
 
 export interface AppState {

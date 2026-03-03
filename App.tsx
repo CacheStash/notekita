@@ -162,7 +162,8 @@ const App: React.FC = () => {
           const userData: User = {
             id: session.user.id,
             username: session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || 'User',
-            isPinEnabled: false
+            isPinEnabled: false,
+            isContentHidden: false
           };
           setCurrentUser(userData);
           await loadDataFromSupabase(session.user.id);
@@ -184,7 +185,8 @@ const App: React.FC = () => {
         const userData: User = {
           id: session.user.id,
           username: session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || 'User',
-          isPinEnabled: false
+          isPinEnabled: false,
+          isContentHidden: false
         };
         setCurrentUser(userData);
         loadDataFromSupabase(session.user.id);
