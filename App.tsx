@@ -257,7 +257,7 @@ const App: React.FC = () => {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
-  const [filter, setFilter] = useState<string>('All'); // Changed to string
+const [filter, setFilter] = useState<string>('All'); // Changed to string
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState<Date | null>(null);
 

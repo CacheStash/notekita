@@ -8,13 +8,14 @@ interface NoteEditorProps {
   onClose: () => void;
 }
 
+// Komponen Pembantu: Textarea yang menyesuaikan tinggi otomatis dengan dukungan keyboard navigation
 const AutoResizeTextarea: React.FC<{ 
   value: string; 
   onChange: (val: string) => void; 
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   placeholder?: string;
   innerRef?: (el: HTMLTextAreaElement | null) => void;
-}> = ({ value, onChange, onKeyDown, placeholder, innerRef }) => {
+}> = React.memo(({ value, onChange, onKeyDown, placeholder, innerRef }) => {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const adjustHeight = () => {
@@ -25,7 +26,8 @@ const AutoResizeTextarea: React.FC<{
     }
   };
 
-  useEffect(() => {
+  // Gunakan useLayoutEffect untuk kalkulasi DOM yang lebih efisien dan tanpa flickering
+  React.useLayoutEffect(() => {
     adjustHeight();
   }, [value]);
 
@@ -43,10 +45,11 @@ const AutoResizeTextarea: React.FC<{
       className="w-full bg-transparent resize-none overflow-hidden focus:outline-none dark:text-zinc-300 text-sm leading-relaxed py-1"
     />
   );
-};
+});
 
 export const NoteEditor: React.FC<NoteEditorProps> = ({ note, onSave, onClose }) => {
   const [title, setTitle] = useState(note?.title || '');
+  // State utama menggunakan array blocks untuk manajemen fokus paragraf yang presisi
   const [blocks, setBlocks] = useState<string[]>(['']);
   const [category, setCategory] = useState<string>(note?.category || 'General');
   const [isPrivate, setIsPrivate] = useState(note?.isPrivate || false);
@@ -58,11 +61,65 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ note, onSave, onClose })
   
   const textareaRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
 
+  // Gunakan useCallback agar props ke AutoResizeTextarea (React.memo) tetap stabil
+  const updateBlock = React.useCallback((index: number, newValue: string) => {
+    setBlocks(prev => {
+      const newBlocks = [...prev];
+      newBlocks[index] = newValue;
+      return newBlocks;
+    });
+  }, []);
+
+  const handleKeyDown = React.useCallback((index: number, e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const target = e.currentTarget;
+    const value = target.value;
+    const cursorPos = target.selectionStart;
+
+    if (e.key === 'Enter' && !e.shiftKey) {
+      if (value.endsWith('\n') && cursorPos === value.length) {
+        e.preventDefault();
+        const cleanedBlock = value.replace(/\n$/, '');
+        
+        setBlocks(prev => {
+          const newBlocks = [...prev];
+          newBlocks[index] = cleanedBlock;
+          newBlocks.splice(index + 1, 0, '');
+          return newBlocks;
+        });
+
+        setTimeout(() => {
+          textareaRefs.current[index + 1]?.focus();
+        }, 0);
+      }
+    }
+
+    if (e.key === 'Backspace' && cursorPos === 0 && index > 0) {
+      e.preventDefault();
+      setBlocks(prev => {
+        const newBlocks = [...prev];
+        const currentContent = newBlocks[index];
+        const prevContent = newBlocks[index - 1];
+        newBlocks[index - 1] = prevContent + currentContent;
+        newBlocks.splice(index, 1);
+        
+        setTimeout(() => {
+          const prevEl = textareaRefs.current[index - 1];
+          if (prevEl) {
+            prevEl.focus();
+            prevEl.setSelectionRange(prevContent.length, prevContent.length);
+          }
+        }, 0);
+
+        return newBlocks;
+      });
+    }
+  }, []);
+
   // Muat Kategori dari Database
   const fetchCats = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data } = await supabase.from('notekita_categories').select('*').eq('user_id', user.id).order('name');
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (authUser) {
+      const { data } = await supabase.from('notekita_categories').select('*').eq('user_id', authUser.id).order('name');
       if (data) setAvailableCategories(data);
     }
   };
@@ -83,53 +140,12 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ note, onSave, onClose })
     alert('Disalin!');
   };
 
-  const updateBlock = (index: number, newValue: string) => {
-    const newBlocks = [...blocks];
-    newBlocks[index] = newValue;
-    setBlocks(newBlocks);
-  };
-
-  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    const target = e.currentTarget;
-    const value = target.value;
-    const cursorPos = target.selectionStart;
-
-    if (e.key === 'Enter' && !e.shiftKey) {
-      if (value.endsWith('\n') && cursorPos === value.length) {
-        e.preventDefault();
-        const cleanedBlock = value.replace(/\n$/, '');
-        const newBlocks = [...blocks];
-        newBlocks[index] = cleanedBlock;
-        newBlocks.splice(index + 1, 0, '');
-        setBlocks(newBlocks);
-        setTimeout(() => textareaRefs.current[index + 1]?.focus(), 0);
-      }
-    }
-
-    if (e.key === 'Backspace' && cursorPos === 0 && index > 0) {
-      e.preventDefault();
-      const newBlocks = [...blocks];
-      const currentContent = newBlocks[index];
-      const prevContent = newBlocks[index - 1];
-      newBlocks[index - 1] = prevContent + currentContent;
-      newBlocks.splice(index, 1);
-      setBlocks(newBlocks);
-      setTimeout(() => {
-        const prevEl = textareaRefs.current[index - 1];
-        if (prevEl) {
-          prevEl.focus();
-          prevEl.setSelectionRange(prevContent.length, prevContent.length);
-        }
-      }, 0);
-    }
-  };
-
   // Logic Manage Kategori
   const addCategory = async () => {
     if (!newCatName.trim()) return;
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data } = await supabase.from('notekita_categories').insert([{ user_id: user.id, name: newCatName }]).select().single();
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (authUser) {
+      const { data } = await supabase.from('notekita_categories').insert([{ user_id: authUser.id, name: newCatName }]).select().single();
       if (data) {
         setAvailableCategories([...availableCategories, data]);
         setNewCatName('');
