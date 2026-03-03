@@ -124,6 +124,15 @@ const App: React.FC = () => {
           .eq('user_id', session.user.id)
           .single();
 
+        // Susun objek user lengkap dengan status PIN
+        const updatedUser: User = {
+          id: session.user.id,
+          username: session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || 'User',
+          isPinEnabled: !!settings?.app_pin,
+          pin: settings?.app_pin || undefined
+        };
+        setCurrentUser(updatedUser);
+
         if (settings?.app_pin) {
           setAppPin(settings.app_pin);
           if (!hasUnlockedSession) {
@@ -594,10 +603,7 @@ const App: React.FC = () => {
         </svg>
       </button>
 
-      {/* Footer Decoration */}
-      <footer className="py-12 text-center text-[10px] uppercase font-bold tracking-[0.3em] text-slate-300 dark:text-zinc-800">
-        Designed for Two &bull; NoteKita Offline
-      </footer>
+      
     </div>
   );
 };
