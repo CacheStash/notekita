@@ -195,19 +195,11 @@ const App: React.FC = () => {
     if (savedViewMode) setViewMode(savedViewMode);
   }, []);
 
-  // Sync Tema & ViewMode ke LocalStorage
+  // SYNC THEME & VIEW MODE KE STORAGE
   useEffect(() => {
     localStorage.setItem('notekita_theme', theme);
     document.documentElement.classList.toggle('dark', theme === 'dark');
-    
-    // Simpan ke Supabase jika login (Auto-save theme)
-    if (currentUser) {
-      supabase.from('notekita_settings').upsert({ 
-        user_id: currentUser.id, 
-        theme: theme 
-      }).then();
-    }
-  }, [theme, currentUser]);
+  }, [theme]);
 
   useEffect(() => {
     localStorage.setItem('notekita_view_mode', viewMode);

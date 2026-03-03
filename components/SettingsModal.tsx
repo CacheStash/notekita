@@ -56,9 +56,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ user, onUpdateUser
       });
 
     if (error) {
-      showMsg('Gagal menyimpan PIN', 'error');
+      console.error(error);
+      alert('❌ Gagal menyimpan pengaturan: ' + error.message);
     } else {
-      showMsg(isPinEnabled ? 'PIN Berhasil diaktifkan!' : 'PIN dinonaktifkan!');
+      alert(isPinEnabled ? '✅ PIN Berhasil diaktifkan!' : '✅ PIN dinonaktifkan!');
       onUpdateUser({ ...user, isPinEnabled });
     }
     setLoading(false);
