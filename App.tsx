@@ -7,9 +7,152 @@ import { NoteEditor } from './components/NoteEditor';
 import { AuthModal } from './components/AuthModal';
 import { SettingsModal } from './components/SettingsModal';
 import { Calendar } from './components/Calendar';
+import { supabase } from "./services/supabase";
 
+const LockScreen = ({
+  onUnlock,
+  correctPin,
+  onForgot,
+}: {
+  onUnlock: () => void;
+  correctPin: string;
+  onForgot: () => void;
+}) => {
+  const [input, setInput] = useState("");
+  const [error, setError] = useState(false);
+  const [shake, setShake] = useState(false);
+
+  const handlePress = (num: string) => {
+    if (input.length < 6) {
+      const next = input + num;
+      setInput(next);
+      if (next.length === 6) {
+        if (next === correctPin) {
+          onUnlock();
+        } else {
+          setError(true);
+          setShake(true);
+          setTimeout(() => {
+            setInput("");
+            setShake(false);
+            setError(false);
+          }, 500);
+        }
+      }
+    }
+  };
+
+  const handleDelete = () => setInput((prev) => prev.slice(0, -1));
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-zinc-950 flex flex-col items-center justify-center p-6 animate-in fade-in duration-300">
+      <div className="mb-8 flex flex-col items-center">
+        <div className="w-16 h-16 bg-indigo-500/20 rounded-full flex items-center justify-center mb-4 text-indigo-500">
+          <div className="w-3 h-3 bg-indigo-500 rounded-full animate-pulse"></div>
+        </div>
+        <h2 className="text-xl font-bold text-white mb-2 font-serif italic">NoteKita Locked</h2>
+        <p className="text-sm text-zinc-500">Masukkan 6-digit PIN</p>
+      </div>
+      <div className={`flex gap-4 mb-12 ${shake ? "animate-shake" : ""}`}>
+        {[...Array(6)].map((_, i) => (
+          <div
+            key={i}
+            className={`w-4 h-4 rounded-full transition-all duration-200 ${i < input.length ? (error ? "bg-red-500 scale-110" : "bg-indigo-500 scale-110") : "bg-white/10"}`}
+          />
+        ))}
+      </div>
+      <div className="grid grid-cols-3 gap-6 w-full max-w-[280px]">
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+          <button
+            key={num}
+            onClick={() => handlePress(num.toString())}
+            className="w-16 h-16 rounded-full bg-white/5 hover:bg-white/10 text-xl font-bold text-white transition-all active:scale-95 flex items-center justify-center"
+          >
+            {num}
+          </button>
+        ))}
+        <div className="w-16 h-16"></div>
+        <button
+          onClick={() => handlePress("0")}
+          className="w-16 h-16 rounded-full bg-white/5 hover:bg-white/10 text-xl font-bold text-white transition-all active:scale-95 flex items-center justify-center"
+        >
+          0
+        </button>
+        <button
+          onClick={handleDelete}
+          className="w-16 h-16 rounded-full text-zinc-500 hover:text-red-400 transition-all active:scale-95 flex items-center justify-center"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9.75L14.25 12m0 0l2.25 2.25M14.25 12l2.25-2.25M14.25 12L12 14.25m-2.58 4.92l-6.375-6.375a1.125 1.125 0 010-1.59L9.42 4.83c.211-.211.498-.33.795-.33H19.5a2.25 2.25 0 012.25 2.25v10.5a2.25 2.25 0 01-2.25 2.25h-9.285a1.125 1.125 0 01-.795-.33z" />
+          </svg>
+        </button>
+      </div>
+      <button
+        onClick={onForgot}
+        className="mt-12 text-xs text-zinc-500 hover:text-indigo-500 tracking-widest uppercase font-bold transition-colors"
+      >
+        Lupa PIN? (Logout)
+      </button>
+      <style>{`@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-10px); } 75% { transform: translateX(10px); } } .animate-shake { animation: shake 0.3s ease-in-out; }`}</style>
+    </div>
+  );
+};
 const App: React.FC = () => {
   const [notes, setNotes] = useState<Note[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [appPin, setAppPin] = useState<string>("");
+  const [isLocked, setIsLocked] = useState(false);
+  const [hasUnlockedSession, setHasUnlockedSession] = useState(() => {
+    return sessionStorage.getItem("notekita_unlocked") === "true";
+  });
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        const userData = {
+          id: session.user.id,
+          username: session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || 'User',
+          isPinEnabled: false
+        };
+        setCurrentUser(userData as User);
+
+        // Ambil PIN dari tabel settings
+        const { data: settings } = await supabase
+          .from('notekita_settings')
+          .select('app_pin')
+          .eq('user_id', session.user.id)
+          .single();
+
+        if (settings?.app_pin) {
+          setAppPin(settings.app_pin);
+          if (!hasUnlockedSession) {
+            setIsLocked(true);
+          }
+        }
+      } else {
+        setCurrentUser(null);
+        setIsLocked(false);
+      }
+      setIsDataLoaded(true);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [hasUnlockedSession]);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    sessionStorage.removeItem("notekita_unlocked");
+    setHasUnlockedSession(false);
+    setCurrentUser(null);
+  };
+
+  const onUnlockSuccess = () => {
+    setIsLocked(false);
+    setHasUnlockedSession(true);
+    sessionStorage.setItem("notekita_unlocked", "true");
+  };
+
   const [theme, setTheme] = useState<Theme>('light');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [sortBy, setSortBy] = useState<SortBy>('date');
@@ -126,6 +269,14 @@ const App: React.FC = () => {
   return (
     <div className={`min-h-screen transition-colors duration-300 ${theme === 'dark' ? 'bg-zinc-950 text-zinc-100' : 'bg-slate-50 text-slate-900'}`}>
       
+{isLocked && appPin && !hasUnlockedSession && (
+        <LockScreen
+          correctPin={appPin}
+          onUnlock={onUnlockSuccess}
+          onForgot={handleLogout}
+        />
+      )}
+
       {/* Header */}
       <header className="sticky top-0 z-40 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md border-b border-slate-200 dark:border-zinc-800">
         <div className="max-w-6xl mx-auto px-4 h-20 flex items-center justify-between">

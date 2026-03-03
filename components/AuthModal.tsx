@@ -1,9 +1,10 @@
 
 import React, { useState } from 'react';
 import { User } from '../types';
+import { supabase } from '../services/supabase';
 
 interface AuthModalProps {
-  onLogin: (user: User) => void;
+  onLogin: (user: any) => void;
   onClose: () => void;
 }
 
@@ -13,7 +14,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLogin, onClose }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -22,33 +23,41 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLogin, onClose }) => {
       return;
     }
 
-    const users: User[] = JSON.parse(localStorage.getItem('notekita_users') || '[]');
+    const email = `${username.toLowerCase()}@notekita.local`;
 
     if (isLogin) {
-      const user = users.find(u => u.username === username && u.passwordHash === password);
-      if (user) {
-        onLogin(user);
-        onClose();
-      } else {
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (authError) {
         setError('Username atau password salah');
+      } else if (data.user) {
+        onLogin({
+          id: data.user.id,
+          username: username,
+          isPinEnabled: false // Akan diupdate di App.tsx setelah cek settings
+        });
+        onClose();
       }
     } else {
-      if (users.find(u => u.username === username)) {
-        setError('Username sudah digunakan');
-        return;
+      const { data, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { display_name: username } }
+      });
+
+      if (authError) {
+        setError(authError.message);
+      } else if (data.user) {
+        onLogin({
+          id: data.user.id,
+          username: username,
+          isPinEnabled: false
+        });
+        onClose();
       }
-
-      const newUser: User = {
-        id: crypto.randomUUID(),
-        username,
-        passwordHash: password,
-        isPinEnabled: false
-      };
-
-      users.push(newUser);
-      localStorage.setItem('notekita_users', JSON.stringify(users));
-      onLogin(newUser);
-      onClose();
     }
   };
 
