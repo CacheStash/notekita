@@ -130,6 +130,22 @@ const App: React.FC = () => {
             setIsLocked(true);
           }
         }
+        const { data: userNotes } = await supabase
+          .from('notekita_notes')
+          .select('*')
+          .order('updated_at', { ascending: false });
+
+        if (userNotes) {
+          setNotes(userNotes.map(n => ({
+            id: n.id,
+            title: n.title,
+            content: n.content,
+            category: n.category as any,
+            isPrivate: n.is_private,
+            createdAt: new Date(n.created_at).getTime(),
+            updatedAt: new Date(n.updated_at).getTime(),
+          })));
+        }
       } else {
         setCurrentUser(null);
         setIsLocked(false);
@@ -213,26 +229,54 @@ const App: React.FC = () => {
     setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
   };
 
-  const saveNote = (noteData: Omit<Note, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
+  const saveNote = async (noteData: Omit<Note, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
+    if (!currentUser) return;
+    
     const now = Date.now();
-    if (noteData.id) {
-      // Update
-      setNotes(prev => prev.map(n => 
-        n.id === noteData.id 
-          ? { ...n, ...noteData, updatedAt: now } 
-          : n
-      ));
-    } else {
-      // Create
-      const newNote: Note = {
-        id: crypto.randomUUID(),
-        ...noteData,
-        createdAt: now,
-        updatedAt: now,
-      };
-      setNotes(prev => [newNote, ...prev]);
+    const notePayload = {
+      user_id: currentUser.id,
+      title: noteData.title,
+      content: noteData.content,
+      category: noteData.category,
+      is_private: noteData.isPrivate,
+      updated_at: new Date().toISOString(),
+    };
+
+    try {
+      if (noteData.id) {
+        // UPDATE ke Supabase
+        await supabase
+          .from('notekita_notes')
+          .update(notePayload)
+          .eq('id', noteData.id);
+
+        setNotes(prev => prev.map(n => 
+          n.id === noteData.id ? { ...n, ...noteData, updatedAt: now } : n
+        ));
+      } else {
+        // INSERT ke Supabase
+        const { data, error } = await supabase
+          .from('notekita_notes')
+          .insert([{ ...notePayload, created_at: new Date().toISOString() }])
+          .select()
+          .single();
+
+        if (data) {
+          const newNote: Note = {
+            id: data.id,
+            ...noteData,
+            createdAt: now,
+            updatedAt: now,
+          };
+          setNotes(prev => [newNote, ...prev]);
+        }
+      }
+    } catch (err) {
+      console.error("Gagal menyimpan catatan:", err);
     }
+    
     setEditingNote(null);
+    setIsEditorOpen(false);
   };
 
   const deleteNote = (id: string) => {

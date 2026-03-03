@@ -5,7 +5,10 @@ const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // Validasi Key: Lebih baik error di awal daripada crash di tengah jalan
 if (!supabaseUrl || !supabaseKey) {
-  throw new Error("Supabase URL atau Key belum diset di .env.local");
+  console.error("⚠️ Supabase URL atau Key belum diset di environment variables!");
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export const supabase = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co', 
+  supabaseKey || 'placeholder-key'
+);
