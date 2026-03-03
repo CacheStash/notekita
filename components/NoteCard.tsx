@@ -87,7 +87,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, user, viewMode = 'grid
           <button 
             onClick={() => {
               if (!showSensitive) {
-                // Gunakan ensureUnlocked agar verifikasi PIN wajib jika disensor
+                // Gunakan ensureUnlocked agar verifikasi PIN wajib sebelum membuka (unhide)
                 ensureUnlocked(() => setShowSensitive(true));
               } else {
                 setShowSensitive(false);

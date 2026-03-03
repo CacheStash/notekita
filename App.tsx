@@ -116,7 +116,7 @@ const App: React.FC = () => {
     try {
       const { data: settings } = await supabase
         .from('notekita_settings')
-        .select('app_pin')
+        .select('app_pin, is_content_hidden')
         .eq('user_id', userId)
         .single();
 
@@ -125,6 +125,13 @@ const App: React.FC = () => {
         const isUnlocked = sessionStorage.getItem("notekita_unlocked") === "true";
         if (!isUnlocked) setIsLocked(true);
       }
+
+      setCurrentUser(prev => prev ? {
+        ...prev,
+        isPinEnabled: !!settings?.app_pin,
+        pin: settings?.app_pin || undefined,
+        isContentHidden: !!settings?.is_content_hidden
+      } : null);
 
       const { data: userNotes } = await supabase
         .from('notekita_notes')
