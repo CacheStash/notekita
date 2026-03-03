@@ -257,16 +257,7 @@ const App: React.FC = () => {
     setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
   };
   
-if (isAuthLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-zinc-950 text-white">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
-          <p className="text-xs font-bold tracking-widest text-zinc-500 uppercase">Memulihkan Sesi...</p>
-        </div>
-      </div>
-    );
-  }
+
 
   const saveNote = async (noteData: Omit<Note, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
     if (!currentUser) {
