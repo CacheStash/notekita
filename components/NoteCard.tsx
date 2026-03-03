@@ -26,9 +26,14 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, user, viewMode = 'grid
     if (!showSensitive) {
       if (user?.isPinEnabled && user.pin) {
         const enteredPin = window.prompt('Masukkan PIN untuk mengakses tindakan ini:');
-        if (enteredPin === user.pin) action();
-        else if (enteredPin !== null) alert('⚠️ PIN salah!');
+        if (enteredPin === user.pin) {
+          setShowSensitive(true); // Buka sensor (unhidden) setelah PIN sukses
+          action();
+        } else if (enteredPin !== null) {
+          alert('⚠️ PIN salah!');
+        }
       } else {
+        setShowSensitive(true);
         action();
       }
     } else {

@@ -24,7 +24,8 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ note, onSave, onClose })
     alert('Disalin!');
   };
 
-  const paragraphs = content.split('\n').filter(p => p.trim() !== '');
+// Split berdasarkan blok paragraf (teks yang dipisahkan oleh satu atau lebih baris kosong)
+  const paragraphs = content.split(/\n\s*\n/).filter(p => p.trim() !== '');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
