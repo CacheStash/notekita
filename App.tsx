@@ -210,9 +210,12 @@ const App: React.FC = () => {
   };
 
   const saveNote = async (noteData: Omit<Note, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      alert("Anda harus login terlebih dahulu.");
+      return;
+    }
     
-    const now = Date.now();
+    setIsLoading(true);
     const notePayload = {
       user_id: currentUser.id,
       title: noteData.title,
@@ -225,13 +228,15 @@ const App: React.FC = () => {
     try {
       if (noteData.id) {
         // UPDATE ke Supabase
-        await supabase
+        const { error } = await supabase
           .from('notekita_notes')
           .update(notePayload)
           .eq('id', noteData.id);
 
+        if (error) throw error;
+
         setNotes(prev => prev.map(n => 
-          n.id === noteData.id ? { ...n, ...noteData, updatedAt: now } : n
+          n.id === noteData.id ? { ...n, ...noteData, updatedAt: Date.now() } : n
         ));
       } else {
         // INSERT ke Supabase
@@ -241,27 +246,44 @@ const App: React.FC = () => {
           .select()
           .single();
 
+        if (error) throw error;
+
         if (data) {
           const newNote: Note = {
             id: data.id,
-            ...noteData,
-            createdAt: now,
-            updatedAt: now,
+            title: data.title,
+            content: data.content,
+            category: data.category as NoteCategory,
+            isPrivate: data.is_private,
+            createdAt: new Date(data.created_at).getTime(),
+            updatedAt: new Date(data.updated_at).getTime(),
           };
           setNotes(prev => [newNote, ...prev]);
         }
       }
-    } catch (err) {
+      setEditingNote(null);
+      setIsEditorOpen(false);
+    } catch (err: any) {
       console.error("Gagal menyimpan catatan:", err);
+      alert("❌ Gagal menyimpan: " + (err.message || "Terjadi kesalahan database"));
+    } finally {
+      setIsLoading(false);
     }
-    
-    setEditingNote(null);
-    setIsEditorOpen(false);
   };
 
-  const deleteNote = (id: string) => {
+  const deleteNote = async (id: string) => {
     if (window.confirm('Hapus catatan ini selamanya?')) {
-      setNotes(prev => prev.filter(n => n.id !== id));
+      try {
+        const { error } = await supabase
+          .from('notekita_notes')
+          .delete()
+          .eq('id', id);
+
+        if (error) throw error;
+        setNotes(prev => prev.filter(n => n.id !== id));
+      } catch (err: any) {
+        alert("❌ Gagal menghapus: " + err.message);
+      }
     }
   };
 
