@@ -101,17 +101,19 @@ const App: React.FC = () => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
- const [isAuthLoading, setIsAuthLoading] = useState(true);
+ 
+  // 1. Deklarasi State (Wajib di atas)
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [appPin, setAppPin] = useState<string>("");
   const [isLocked, setIsLocked] = useState(false);
   const [hasUnlockedSession, setHasUnlockedSession] = useState(() => {
     return sessionStorage.getItem("notekita_unlocked") === "true";
   });
 
-  // Helper untuk memuat data (Mirroring Finance Manager logic)
+  // 2. Helper Muat Data (Identik dengan Finance App)
   const loadDataFromSupabase = async (userId: string) => {
     try {
-      // 1. Ambil data settings (PIN)
       const { data: settings } = await supabase
         .from('notekita_settings')
         .select('app_pin')
@@ -124,7 +126,6 @@ const App: React.FC = () => {
         if (!isUnlocked) setIsLocked(true);
       }
 
-      // 2. Ambil catatan
       const { data: userNotes } = await supabase
         .from('notekita_notes')
         .select('*')
@@ -142,12 +143,13 @@ const App: React.FC = () => {
         })));
       }
     } catch (err) {
-      console.error("Fetch Error:", err);
+      console.error(err);
     } finally {
       setIsDataLoaded(true);
     }
   };
 
+  // 3. Effect Utama: Recovery Sesi & Listener
   useEffect(() => {
     let mounted = true;
 
@@ -160,18 +162,18 @@ const App: React.FC = () => {
           const userData: User = {
             id: session.user.id,
             username: session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || 'User',
-            isPinEnabled: false // Akan diupdate oleh loadData
+            isPinEnabled: false
           };
           setCurrentUser(userData);
           await loadDataFromSupabase(session.user.id);
-        } else {
-          setIsDataLoaded(true);
         }
       } catch (error) {
-        setCurrentUser(null);
-        setIsDataLoaded(true);
+        console.error("Auth Error:", error);
       } finally {
-        if (mounted) setIsAuthLoading(false);
+        if (mounted) {
+          setIsAuthLoading(false);
+          setIsDataLoaded(true);
+        }
       }
     };
 
@@ -187,9 +189,11 @@ const App: React.FC = () => {
         setCurrentUser(userData);
         loadDataFromSupabase(session.user.id);
       } else {
-        setCurrentUser(null);
-        setNotes([]);
-        setIsLocked(false);
+        if (event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') {
+          setCurrentUser(null);
+          setNotes([]);
+          setIsLocked(false);
+        }
       }
       setIsAuthLoading(false);
     });
@@ -199,7 +203,6 @@ const App: React.FC = () => {
       subscription.unsubscribe();
     };
   }, []);
-// --- END FIX ---
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -218,7 +221,7 @@ const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [sortBy, setSortBy] = useState<SortBy>('date');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -372,7 +375,7 @@ if (isAuthLoading) {
       <div className="flex h-screen items-center justify-center bg-zinc-950 text-white">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
-          <p className="text-xs font-bold tracking-widest text-zinc-500 uppercase">Memulihkan Sesi...</p>
+          <p className="text-xs font-bold tracking-widest text-zinc-500 uppercase italic">NoteKita: Memulihkan Sesi...</p>
         </div>
       </div>
     );
