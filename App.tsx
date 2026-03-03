@@ -207,10 +207,18 @@ const App: React.FC = () => {
   }, []);
 
   const handleLogout = async () => {
+    // 1. Sign out resmi dari Supabase (Hapus Token/Cookie)
     await supabase.auth.signOut();
+
+    // 2. Bersihkan Session Storage
     sessionStorage.removeItem("notekita_unlocked");
     setHasUnlockedSession(false);
+
+    // 3. Reset total state UI agar tampilan bersih
     setCurrentUser(null);
+    setNotes([]);
+    setIsLocked(false);
+    setIsSettingsModalOpen(false);
   };
 
   const onUnlockSuccess = () => {
@@ -634,7 +642,7 @@ if (isAuthLoading) {
         <SettingsModal
           user={currentUser}
           onUpdateUser={(updatedUser) => setCurrentUser(updatedUser)}
-          onLogout={() => { setCurrentUser(null); setIsSettingsModalOpen(false); }}
+          onLogout={handleLogout}
           onClose={() => setIsSettingsModalOpen(false)}
         />
       )}
