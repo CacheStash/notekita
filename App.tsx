@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Note, Theme, User, ViewMode, SortBy, SortOrder } from './types'; // NoteCategory dihapus karena sekarang dinamis
+import { Note, Theme, User, ViewMode, SortBy, SortOrder } from './types'; 
 import { ThemeToggle } from './components/ThemeToggle';
 import { NoteCard } from './components/NoteCard';
 import { NoteEditor } from './components/NoteEditor';
@@ -99,7 +99,7 @@ const LockScreen = ({
 
 const App: React.FC = () => {
   const [notes, setNotes] = useState<Note[]>([]);
-  const [categories, setCategories] = useState<{id: string, name: string}[]>([]); // New State
+  const [categories, setCategories] = useState<{id: string, name: string}[]>([]); 
   const [isLoading, setIsLoading] = useState(false);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
  
@@ -111,10 +111,8 @@ const App: React.FC = () => {
     return sessionStorage.getItem("notekita_unlocked") === "true";
   });
 
-  // Gunakan ref untuk melacak data user terakhir yang berhasil dimuat guna mencegah loop/redundansi
   const lastLoadedUserId = React.useRef<string | null>(null);
 
-  // Helper Muat Kategori (Optimasi: Hanya jalankan jika diperlukan)
   const loadCategories = async (userId: string) => {
     const { data } = await supabase
       .from('notekita_categories')
@@ -133,14 +131,18 @@ const App: React.FC = () => {
   };
 
   const loadDataFromSupabase = async (userId: string) => {
-    // Cegah eksekusi ganda jika data untuk user ini sudah dimuat
-    if (lastLoadedUserId.current === userId) return;
+    // FIX: Tetap matikan loading meskipun user ID sama (mencegah stuck)
+    if (lastLoadedUserId.current === userId) {
+      setIsAuthLoading(false);
+      setIsDataLoaded(true);
+      return;
+    }
     
     try {
       lastLoadedUserId.current = userId;
       setIsLoading(true);
 
-      // Load Categories & Settings secara paralel untuk performa lebih baik
+      // Load Categories & Settings secara paralel
       const [catResult, settingsResult] = await Promise.all([
         loadCategories(userId),
         supabase.from('notekita_settings').select('app_pin, is_content_hidden').eq('user_id', userId).single()
@@ -179,7 +181,7 @@ const App: React.FC = () => {
       }
     } catch (err) {
       console.error("Load Error:", err);
-      lastLoadedUserId.current = null; // Reset jika gagal agar bisa coba lagi
+      lastLoadedUserId.current = null;
     } finally {
       setIsLoading(false);
       setIsDataLoaded(true);
@@ -201,11 +203,11 @@ const App: React.FC = () => {
           isContentHidden: false
         };
         setCurrentUser(userData);
-        // loadData sudah punya proteksi ref di dalamnya
         loadDataFromSupabase(session.user.id);
       } else {
         if (event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') {
-          handleLogout();
+          handleLogoutLocal();
+          setIsAuthLoading(false); // Pastikan loading mati jika tidak ada sesi
         }
       }
     });
@@ -216,16 +218,20 @@ const App: React.FC = () => {
     };
   }, []);
 
-  const handleLogout = async () => {
-    lastLoadedUserId.current = null; // Reset tracker saat logout
-    await supabase.auth.signOut();
+  const handleLogoutLocal = () => {
+    lastLoadedUserId.current = null;
     sessionStorage.removeItem("notekita_unlocked");
     setHasUnlockedSession(false);
     setCurrentUser(null);
     setNotes([]);
-    setCategories([]); // Clear categories on logout
+    setCategories([]);
     setIsLocked(false);
     setIsSettingsModalOpen(false);
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    handleLogoutLocal();
   };
 
   const onUnlockSuccess = () => {
@@ -244,7 +250,7 @@ const App: React.FC = () => {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
-const [filter, setFilter] = useState<string>('All'); // Changed to string
+  const [filter, setFilter] = useState<string>('All'); 
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState<Date | null>(null);
 
