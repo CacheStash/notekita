@@ -101,71 +101,105 @@ const App: React.FC = () => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
+ const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [appPin, setAppPin] = useState<string>("");
   const [isLocked, setIsLocked] = useState(false);
   const [hasUnlockedSession, setHasUnlockedSession] = useState(() => {
     return sessionStorage.getItem("notekita_unlocked") === "true";
   });
 
-  useEffect(() => {
-    // Gunakan listener stabil dengan Dependency Array Kosong []
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        // 1. Ambil data settings (PIN) secara async
-        const { data: settings } = await supabase
-          .from('notekita_settings')
-          .select('app_pin')
-          .eq('user_id', session.user.id)
-          .single();
+  // Helper untuk memuat data (Mirroring Finance Manager logic)
+  const loadDataFromSupabase = async (userId: string) => {
+    try {
+      // 1. Ambil data settings (PIN)
+      const { data: settings } = await supabase
+        .from('notekita_settings')
+        .select('app_pin')
+        .eq('user_id', userId)
+        .single();
 
-        const updatedUser: User = {
+      if (settings?.app_pin) {
+        setAppPin(settings.app_pin);
+        const isUnlocked = sessionStorage.getItem("notekita_unlocked") === "true";
+        if (!isUnlocked) setIsLocked(true);
+      }
+
+      // 2. Ambil catatan
+      const { data: userNotes } = await supabase
+        .from('notekita_notes')
+        .select('*')
+        .order('updated_at', { ascending: false });
+
+      if (userNotes) {
+        setNotes(userNotes.map(n => ({
+          id: n.id,
+          title: n.title,
+          content: n.content,
+          category: n.category as any,
+          isPrivate: n.is_private,
+          createdAt: new Date(n.created_at).getTime(),
+          updatedAt: new Date(n.updated_at).getTime(),
+        })));
+      }
+    } catch (err) {
+      console.error("Fetch Error:", err);
+    } finally {
+      setIsDataLoaded(true);
+    }
+  };
+
+  useEffect(() => {
+    let mounted = true;
+
+    const checkUser = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!mounted) return;
+        
+        if (session?.user) {
+          const userData: User = {
+            id: session.user.id,
+            username: session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || 'User',
+            isPinEnabled: false // Akan diupdate oleh loadData
+          };
+          setCurrentUser(userData);
+          await loadDataFromSupabase(session.user.id);
+        } else {
+          setIsDataLoaded(true);
+        }
+      } catch (error) {
+        setCurrentUser(null);
+        setIsDataLoaded(true);
+      } finally {
+        if (mounted) setIsAuthLoading(false);
+      }
+    };
+
+    checkUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user) {
+        const userData: User = {
           id: session.user.id,
           username: session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || 'User',
-          isPinEnabled: !!settings?.app_pin,
-          pin: settings?.app_pin || undefined
+          isPinEnabled: false
         };
-        
-        setCurrentUser(updatedUser);
-
-        if (settings?.app_pin) {
-          setAppPin(settings.app_pin);
-          // Baca langsung dari storage untuk menentukan status LockScreen saat reload
-          const isUnlocked = sessionStorage.getItem("notekita_unlocked") === "true";
-          if (!isUnlocked) {
-            setIsLocked(true);
-          }
-        }
-
-        // 2. Muat Catatan dari Database
-        const { data: userNotes } = await supabase
-          .from('notekita_notes')
-          .select('*')
-          .order('updated_at', { ascending: false });
-
-        if (userNotes) {
-          setNotes(userNotes.map(n => ({
-            id: n.id,
-            title: n.title,
-            content: n.content,
-            category: n.category as any,
-            isPrivate: n.is_private,
-            createdAt: new Date(n.created_at).getTime(),
-            updatedAt: new Date(n.updated_at).getTime(),
-          })));
-        }
+        setCurrentUser(userData);
+        loadDataFromSupabase(session.user.id);
       } else {
-        // 3. Reset Total: Hanya bersihkan jika benar-benar logout atau sesi INITIAL_SESSION kosong
-        if (event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') {
-          setCurrentUser(null);
-          setNotes([]);
-          setIsLocked(false);
-        }
+        setCurrentUser(null);
+        setNotes([]);
+        setIsLocked(false);
       }
-      setIsDataLoaded(true);
+      setIsAuthLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
+// --- END FIX ---
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -219,6 +253,17 @@ const App: React.FC = () => {
   const toggleTheme = () => {
     setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
   };
+  
+if (isAuthLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-zinc-950 text-white">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
+          <p className="text-xs font-bold tracking-widest text-zinc-500 uppercase">Memulihkan Sesi...</p>
+        </div>
+      </div>
+    );
+  }
 
   const saveNote = async (noteData: Omit<Note, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
     if (!currentUser) {

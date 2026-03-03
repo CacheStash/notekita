@@ -10,5 +10,12 @@ if (!supabaseUrl || !supabaseKey) {
 
 export const supabase = createClient(
   supabaseUrl || 'https://placeholder.supabase.co', 
-  supabaseKey || 'placeholder-key'
+  supabaseKey || 'placeholder-key',
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true
+    }
+  }
 );
