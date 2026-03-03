@@ -19,9 +19,8 @@ export type SortOrder = 'asc' | 'desc';
 export interface User {
   id: string;
   username: string;
-  passwordHash: string;
-  pin?: string;
   isPinEnabled: boolean;
+  pin?: string;
 }
 
 export interface AppState {

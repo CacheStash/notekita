@@ -185,45 +185,33 @@ const App: React.FC = () => {
 
   // Initial load
   useEffect(() => {
-    const savedNotes = localStorage.getItem('notekita_notes');
     const savedTheme = localStorage.getItem('notekita_theme') as Theme;
-    const savedUser = localStorage.getItem('notekita_current_user');
     const savedViewMode = localStorage.getItem('notekita_view_mode') as ViewMode;
     
-    if (savedNotes) setNotes(JSON.parse(savedNotes));
     if (savedTheme) {
       setTheme(savedTheme);
       document.documentElement.classList.toggle('dark', savedTheme === 'dark');
     }
-    if (savedUser) setCurrentUser(JSON.parse(savedUser));
     if (savedViewMode) setViewMode(savedViewMode);
   }, []);
 
-  // Sync with localStorage
-  useEffect(() => {
-    localStorage.setItem('notekita_notes', JSON.stringify(notes));
-  }, [notes]);
-
+  // Sync Tema & ViewMode ke LocalStorage
   useEffect(() => {
     localStorage.setItem('notekita_theme', theme);
     document.documentElement.classList.toggle('dark', theme === 'dark');
-  }, [theme]);
+    
+    // Simpan ke Supabase jika login (Auto-save theme)
+    if (currentUser) {
+      supabase.from('notekita_settings').upsert({ 
+        user_id: currentUser.id, 
+        theme: theme 
+      }).then();
+    }
+  }, [theme, currentUser]);
 
   useEffect(() => {
     localStorage.setItem('notekita_view_mode', viewMode);
   }, [viewMode]);
-
-  useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem('notekita_current_user', JSON.stringify(currentUser));
-      // Update users list in localStorage
-      const users: User[] = JSON.parse(localStorage.getItem('notekita_users') || '[]');
-      const updatedUsers = users.map(u => u.id === currentUser.id ? currentUser : u);
-      localStorage.setItem('notekita_users', JSON.stringify(updatedUsers));
-    } else {
-      localStorage.removeItem('notekita_current_user');
-    }
-  }, [currentUser]);
 
   const toggleTheme = () => {
     setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
