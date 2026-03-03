@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
-import { Note, Theme, NoteCategory, User, ViewMode, SortBy, SortOrder } from './types';
+import { Note, Theme, User, ViewMode, SortBy, SortOrder } from './types'; // NoteCategory dihapus karena sekarang dinamis
 import { ThemeToggle } from './components/ThemeToggle';
 import { NoteCard } from './components/NoteCard';
 import { NoteEditor } from './components/NoteEditor';
@@ -97,12 +96,13 @@ const LockScreen = ({
     </div>
   );
 };
+
 const App: React.FC = () => {
   const [notes, setNotes] = useState<Note[]>([]);
+  const [categories, setCategories] = useState<{id: string, name: string}[]>([]); // New State
   const [isLoading, setIsLoading] = useState(false);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
  
-  // 1. Deklarasi State (Wajib di atas)
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [appPin, setAppPin] = useState<string>("");
@@ -111,9 +111,29 @@ const App: React.FC = () => {
     return sessionStorage.getItem("notekita_unlocked") === "true";
   });
 
-  // 2. Helper Muat Data (Identik dengan Finance App)
+  // Helper Muat Kategori (Auto-create defaults if empty)
+  const loadCategories = async (userId: string) => {
+    const { data } = await supabase
+      .from('notekita_categories')
+      .select('id, name')
+      .eq('user_id', userId)
+      .order('name');
+    
+    if (data && data.length > 0) {
+      setCategories(data);
+    } else {
+      const defaults = ['General', 'Password', 'ToDo', 'Idea', 'Personal'];
+      const inserts = defaults.map(name => ({ user_id: userId, name }));
+      const { data: newData } = await supabase.from('notekita_categories').insert(inserts).select();
+      if (newData) setCategories(newData);
+    }
+  };
+
   const loadDataFromSupabase = async (userId: string) => {
     try {
+      // Load Categories First
+      await loadCategories(userId);
+
       const { data: settings } = await supabase
         .from('notekita_settings')
         .select('app_pin, is_content_hidden')
@@ -143,7 +163,7 @@ const App: React.FC = () => {
           id: n.id,
           title: n.title,
           content: n.content,
-          category: n.category as any,
+          category: n.category,
           isPrivate: n.is_private,
           createdAt: new Date(n.created_at).getTime(),
           updatedAt: new Date(n.updated_at).getTime(),
@@ -156,7 +176,6 @@ const App: React.FC = () => {
     }
   };
 
-  // 3. Effect Utama: Recovery Sesi & Listener
   useEffect(() => {
     let mounted = true;
 
@@ -199,9 +218,7 @@ const App: React.FC = () => {
         loadDataFromSupabase(session.user.id);
       } else {
         if (event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') {
-          setCurrentUser(null);
-          setNotes([]);
-          setIsLocked(false);
+          handleLogout();
         }
       }
       setIsAuthLoading(false);
@@ -214,16 +231,12 @@ const App: React.FC = () => {
   }, []);
 
   const handleLogout = async () => {
-    // 1. Sign out resmi dari Supabase (Hapus Token/Cookie)
     await supabase.auth.signOut();
-
-    // 2. Bersihkan Session Storage
     sessionStorage.removeItem("notekita_unlocked");
     setHasUnlockedSession(false);
-
-    // 3. Reset total state UI agar tampilan bersih
     setCurrentUser(null);
     setNotes([]);
+    setCategories([]); // Clear categories on logout
     setIsLocked(false);
     setIsSettingsModalOpen(false);
   };
@@ -244,11 +257,10 @@ const App: React.FC = () => {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
-  const [filter, setFilter] = useState<NoteCategory | 'All'>('All');
+  const [filter, setFilter] = useState<string>('All'); // Changed to string
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState<Date | null>(null);
 
-  // Initial load
   useEffect(() => {
     const savedTheme = localStorage.getItem('notekita_theme') as Theme;
     const savedViewMode = localStorage.getItem('notekita_view_mode') as ViewMode;
@@ -260,7 +272,6 @@ const App: React.FC = () => {
     if (savedViewMode) setViewMode(savedViewMode);
   }, []);
 
-  // SYNC THEME & VIEW MODE KE STORAGE
   useEffect(() => {
     localStorage.setItem('notekita_theme', theme);
     document.documentElement.classList.toggle('dark', theme === 'dark');
@@ -273,8 +284,6 @@ const App: React.FC = () => {
   const toggleTheme = () => {
     setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
   };
-  
-
 
   const saveNote = async (noteData: Omit<Note, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
     if (!currentUser) {
@@ -294,7 +303,6 @@ const App: React.FC = () => {
 
     try {
       if (noteData.id) {
-        // UPDATE ke Supabase
         const { error } = await supabase
           .from('notekita_notes')
           .update(notePayload)
@@ -306,7 +314,6 @@ const App: React.FC = () => {
           n.id === noteData.id ? { ...n, ...noteData, updatedAt: Date.now() } : n
         ));
       } else {
-        // INSERT ke Supabase
         const { data, error } = await supabase
           .from('notekita_notes')
           .insert([{ ...notePayload, created_at: new Date().toISOString() }])
@@ -320,7 +327,7 @@ const App: React.FC = () => {
             id: data.id,
             title: data.title,
             content: data.content,
-            category: data.category as NoteCategory,
+            category: data.category,
             isPrivate: data.is_private,
             createdAt: new Date(data.created_at).getTime(),
             updatedAt: new Date(data.updated_at).getTime(),
@@ -378,7 +385,8 @@ const App: React.FC = () => {
         return sortOrder === 'desc' ? comparison : -comparison;
       });
   }, [notes, filter, searchQuery, sortBy, sortOrder]);
-if (isAuthLoading) {
+
+  if (isAuthLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-zinc-950 text-white">
         <div className="flex flex-col items-center gap-4">
@@ -388,10 +396,11 @@ if (isAuthLoading) {
       </div>
     );
   }
+
   return (
     <div className={`min-h-screen transition-colors duration-300 ${theme === 'dark' ? 'bg-zinc-950 text-zinc-100' : 'bg-slate-50 text-slate-900'}`}>
       
-{isLocked && appPin && !hasUnlockedSession && (
+      {isLocked && appPin && !hasUnlockedSession && (
         <LockScreen
           correctPin={appPin}
           onUnlock={onUnlockSuccess}
@@ -416,70 +425,70 @@ if (isAuthLoading) {
             </div>
           </div>
 
-            <div className="flex items-center space-x-2 md:space-x-3">
-              <div className="hidden md:flex bg-slate-100 dark:bg-zinc-900 rounded-full px-4 py-2 items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-slate-400 mr-2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-                </svg>
-                <input 
-                  type="text" 
-                  placeholder="Cari catatan..." 
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-transparent text-xs focus:outline-none w-32 lg:w-48 dark:text-zinc-300"
-                />
-              </div>
-              
-              <div className="flex items-center space-x-1">
-                <button 
-                  onClick={() => setIsCalendarOpen(true)}
-                  className="p-2 text-slate-500 hover:text-indigo-500 hover:bg-slate-100 dark:hover:bg-zinc-900 rounded-xl transition-all"
-                  title="Kalender"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008zM9.75 15h.008v.008H9.75V15zm0 2.25h.008v.008H9.75v-.008zM7.5 15h.008v.008H7.5V15zm0 2.25h.008v.008H7.5v-.008zm6.75-4.5h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V15zm0 2.25h.008v.008h-.008v-.008zm2.25-4.5h.008v.008H16.5v-.008zm0 2.25h.008v.008H16.5V15z" />
-                  </svg>
-                </button>
-
-                <ThemeToggle theme={theme} toggle={toggleTheme} />
-                
-                <button 
-                  onClick={() => currentUser ? setIsSettingsModalOpen(true) : setIsAuthModalOpen(true)}
-                  className="p-2 text-slate-500 hover:text-indigo-500 hover:bg-slate-100 dark:hover:bg-zinc-900 rounded-xl transition-all"
-                  title="Pengaturan"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.127c-.332.183-.582.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </button>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <button 
-                  onClick={() => setIsEditorOpen(true)}
-                  className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-indigo-600/20 hover:scale-105 transition-transform"
-                >
-                  + Baru
-                </button>
-                
-                {!currentUser ? (
-                  <button 
-                    onClick={() => setIsAuthModalOpen(true)}
-                    className="p-2 bg-slate-100 dark:bg-zinc-900 text-slate-600 dark:text-zinc-400 rounded-xl hover:text-indigo-500 transition-all"
-                    title="Masuk / Daftar"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                    </svg>
-                  </button>
-                ) : (
-                  <div className="w-10 h-10 bg-slate-100 dark:bg-zinc-900 rounded-xl flex items-center justify-center text-indigo-500 font-bold border border-slate-200 dark:border-zinc-800">
-                    {currentUser.username.charAt(0).toUpperCase()}
-                  </div>
-                )}
-              </div>
+          <div className="flex items-center space-x-2 md:space-x-3">
+            <div className="hidden md:flex bg-slate-100 dark:bg-zinc-900 rounded-full px-4 py-2 items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-slate-400 mr-2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+              </svg>
+              <input 
+                type="text" 
+                placeholder="Cari catatan..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="bg-transparent text-xs focus:outline-none w-32 lg:w-48 dark:text-zinc-300"
+              />
             </div>
+            
+            <div className="flex items-center space-x-1">
+              <button 
+                onClick={() => setIsCalendarOpen(true)}
+                className="p-2 text-slate-500 hover:text-indigo-500 hover:bg-slate-100 dark:hover:bg-zinc-900 rounded-xl transition-all"
+                title="Kalender"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008zM9.75 15h.008v.008H9.75V15zm0 2.25h.008v.008H9.75v-.008zM7.5 15h.008v.008H7.5V15zm0 2.25h.008v.008H7.5v-.008zm6.75-4.5h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V15zm0 2.25h.008v.008h-.008v-.008zm2.25-4.5h.008v.008H16.5v-.008zm0 2.25h.008v.008H16.5V15z" />
+                </svg>
+              </button>
+
+              <ThemeToggle theme={theme} toggle={toggleTheme} />
+              
+              <button 
+                onClick={() => currentUser ? setIsSettingsModalOpen(true) : setIsAuthModalOpen(true)}
+                className="p-2 text-slate-500 hover:text-indigo-500 hover:bg-slate-100 dark:hover:bg-zinc-900 rounded-xl transition-all"
+                title="Pengaturan"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.127c-.332.183-.582.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <button 
+                onClick={() => setIsEditorOpen(true)}
+                className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-indigo-600/20 hover:scale-105 transition-transform"
+              >
+                + Baru
+              </button>
+              
+              {!currentUser ? (
+                <button 
+                  onClick={() => setIsAuthModalOpen(true)}
+                  className="p-2 bg-slate-100 dark:bg-zinc-900 text-slate-600 dark:text-zinc-400 rounded-xl hover:text-indigo-500 transition-all"
+                  title="Masuk / Daftar"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                  </svg>
+                </button>
+              ) : (
+                <div className="w-10 h-10 bg-slate-100 dark:bg-zinc-900 rounded-xl flex items-center justify-center text-indigo-500 font-bold border border-slate-200 dark:border-zinc-800">
+                  {currentUser.username.charAt(0).toUpperCase()}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </header>
 
@@ -490,17 +499,27 @@ if (isAuthLoading) {
         <div className="flex flex-col space-y-4 mb-8">
           <div className="flex items-center justify-between overflow-x-auto no-scrollbar pb-2">
             <div className="flex space-x-2">
-              {['All', 'Password', 'ToDo', 'Idea', 'General', 'Personal'].map((cat) => (
+              <button
+                onClick={() => setFilter('All')}
+                className={`whitespace-nowrap px-5 py-2 rounded-full text-xs font-semibold transition-all ${
+                  filter === 'All'
+                    ? 'bg-slate-900 text-white dark:bg-white dark:text-zinc-900'
+                    : 'bg-white text-slate-500 border border-slate-200 dark:bg-zinc-900 dark:text-zinc-400 dark:border-zinc-800 hover:border-slate-300'
+                }`}
+              >
+                Semua
+              </button>
+              {categories.map((cat) => (
                 <button
-                  key={cat}
-                  onClick={() => setFilter(cat as any)}
+                  key={cat.id}
+                  onClick={() => setFilter(cat.name)}
                   className={`whitespace-nowrap px-5 py-2 rounded-full text-xs font-semibold transition-all ${
-                    filter === cat
+                    filter === cat.name
                       ? 'bg-slate-900 text-white dark:bg-white dark:text-zinc-900'
                       : 'bg-white text-slate-500 border border-slate-200 dark:bg-zinc-900 dark:text-zinc-400 dark:border-zinc-800 hover:border-slate-300'
                   }`}
                 >
-                  {cat === 'All' ? 'Semua' : cat}
+                  {cat.name}
                 </button>
               ))}
             </div>
@@ -575,22 +594,6 @@ if (isAuthLoading) {
           </div>
         )}
 
-        {/* Mobile Search */}
-        <div className="md:hidden mb-6">
-           <div className="flex bg-white dark:bg-zinc-900 rounded-2xl px-4 py-3 items-center border border-slate-200 dark:border-zinc-800 shadow-sm">
-               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-slate-400 mr-2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-              </svg>
-              <input 
-                type="text" 
-                placeholder="Cari catatan..." 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-transparent text-sm focus:outline-none flex-1 dark:text-zinc-300"
-              />
-            </div>
-        </div>
-
         {/* Notes Grid/List */}
         {filteredNotes.length > 0 ? (
           <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "flex flex-col space-y-3"}>
@@ -624,7 +627,7 @@ if (isAuthLoading) {
         )}
       </main>
 
-      {/* Editor Modal */}
+      {/* Modals */}
       {isEditorOpen && (
         <NoteEditor
           note={editingNote}
@@ -633,18 +636,13 @@ if (isAuthLoading) {
         />
       )}
 
-      {/* Auth Modal */}
       {isAuthModalOpen && (
         <AuthModal
-          onLogin={() => {
-            setIsAuthModalOpen(false);
-            // Sesi akan ditangkap otomatis oleh useEffect listener
-          }}
+          onLogin={() => setIsAuthModalOpen(false)}
           onClose={() => setIsAuthModalOpen(false)}
         />
       )}
 
-      {/* Settings Modal */}
       {isSettingsModalOpen && currentUser && (
         <SettingsModal
           user={currentUser}
@@ -654,7 +652,6 @@ if (isAuthLoading) {
         />
       )}
 
-      {/* Calendar Modal */}
       {isCalendarOpen && (
         <Calendar
           notes={notes}
@@ -663,7 +660,7 @@ if (isAuthLoading) {
         />
       )}
 
-      {/* Floating Action Button (Mobile Only) */}
+      {/* Floating Action Button */}
       <button 
         onClick={() => setIsEditorOpen(true)}
         className="md:hidden fixed bottom-6 right-6 w-14 h-14 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-full shadow-2xl flex items-center justify-center z-40 active:scale-95 transition-transform"
@@ -672,8 +669,6 @@ if (isAuthLoading) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
         </svg>
       </button>
-
-      
     </div>
   );
 };
