@@ -111,7 +111,10 @@ const App: React.FC = () => {
     return sessionStorage.getItem("notekita_unlocked") === "true";
   });
 
-  // Helper Muat Kategori (Auto-create defaults if empty)
+  // Gunakan ref untuk melacak data user terakhir yang berhasil dimuat guna mencegah loop/redundansi
+  const lastLoadedUserId = React.useRef<string | null>(null);
+
+  // Helper Muat Kategori (Optimasi: Hanya jalankan jika diperlukan)
   const loadCategories = async (userId: string) => {
     const { data } = await supabase
       .from('notekita_categories')
@@ -130,15 +133,20 @@ const App: React.FC = () => {
   };
 
   const loadDataFromSupabase = async (userId: string) => {
+    // Cegah eksekusi ganda jika data untuk user ini sudah dimuat
+    if (lastLoadedUserId.current === userId) return;
+    
     try {
-      // Load Categories First
-      await loadCategories(userId);
+      lastLoadedUserId.current = userId;
+      setIsLoading(true);
 
-      const { data: settings } = await supabase
-        .from('notekita_settings')
-        .select('app_pin, is_content_hidden')
-        .eq('user_id', userId)
-        .single();
+      // Load Categories & Settings secara paralel untuk performa lebih baik
+      const [catResult, settingsResult] = await Promise.all([
+        loadCategories(userId),
+        supabase.from('notekita_settings').select('app_pin, is_content_hidden').eq('user_id', userId).single()
+      ]);
+
+      const settings = settingsResult.data;
 
       if (settings?.app_pin) {
         setAppPin(settings.app_pin);
@@ -170,43 +178,21 @@ const App: React.FC = () => {
         })));
       }
     } catch (err) {
-      console.error(err);
+      console.error("Load Error:", err);
+      lastLoadedUserId.current = null; // Reset jika gagal agar bisa coba lagi
     } finally {
+      setIsLoading(false);
       setIsDataLoaded(true);
+      setIsAuthLoading(false);
     }
   };
 
   useEffect(() => {
     let mounted = true;
 
-    const checkUser = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!mounted) return;
-        
-        if (session?.user) {
-          const userData: User = {
-            id: session.user.id,
-            username: session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || 'User',
-            isPinEnabled: false,
-            isContentHidden: false
-          };
-          setCurrentUser(userData);
-          await loadDataFromSupabase(session.user.id);
-        }
-      } catch (error) {
-        console.error("Auth Error:", error);
-      } finally {
-        if (mounted) {
-          setIsAuthLoading(false);
-          setIsDataLoaded(true);
-        }
-      }
-    };
-
-    checkUser();
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return;
+
       if (session?.user) {
         const userData: User = {
           id: session.user.id,
@@ -215,13 +201,13 @@ const App: React.FC = () => {
           isContentHidden: false
         };
         setCurrentUser(userData);
+        // loadData sudah punya proteksi ref di dalamnya
         loadDataFromSupabase(session.user.id);
       } else {
         if (event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') {
           handleLogout();
         }
       }
-      setIsAuthLoading(false);
     });
 
     return () => {
@@ -231,6 +217,7 @@ const App: React.FC = () => {
   }, []);
 
   const handleLogout = async () => {
+    lastLoadedUserId.current = null; // Reset tracker saat logout
     await supabase.auth.signOut();
     sessionStorage.removeItem("notekita_unlocked");
     setHasUnlockedSession(false);
@@ -384,7 +371,7 @@ const [filter, setFilter] = useState<string>('All'); // Changed to string
         }
         return sortOrder === 'desc' ? comparison : -comparison;
       });
-  }, [notes, filter, searchQuery, sortBy, sortOrder]);
+  }, [notes, filter, searchQuery, sortBy, sortOrder, dateFilter]);
 
   if (isAuthLoading) {
     return (
