@@ -108,9 +108,10 @@ const App: React.FC = () => {
   });
 
   useEffect(() => {
+    // Gunakan listener stabil dengan Dependency Array Kosong []
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
-        // 1. Ambil data settings (PIN)
+        // 1. Ambil data settings (PIN) secara async
         const { data: settings } = await supabase
           .from('notekita_settings')
           .select('app_pin')
@@ -123,27 +124,25 @@ const App: React.FC = () => {
           isPinEnabled: !!settings?.app_pin,
           pin: settings?.app_pin || undefined
         };
+        
         setCurrentUser(updatedUser);
 
         if (settings?.app_pin) {
           setAppPin(settings.app_pin);
-          // Cek status unlock langsung dari storage untuk menentukan status LockScreen
+          // Baca langsung dari storage untuk menentukan status LockScreen saat reload
           const isUnlocked = sessionStorage.getItem("notekita_unlocked") === "true";
           if (!isUnlocked) {
             setIsLocked(true);
           }
         }
 
-        // 2. Muat Catatan dengan penanganan error
-        const { data: userNotes, error: notesError } = await supabase
+        // 2. Muat Catatan dari Database
+        const { data: userNotes } = await supabase
           .from('notekita_notes')
           .select('*')
           .order('updated_at', { ascending: false });
 
-        if (notesError) {
-          console.error("Gagal memuat catatan:", notesError);
-          setNotes([]);
-        } else if (userNotes) {
+        if (userNotes) {
           setNotes(userNotes.map(n => ({
             id: n.id,
             title: n.title,
@@ -155,10 +154,12 @@ const App: React.FC = () => {
           })));
         }
       } else {
-        // 3. Reset Total: Bersihkan semua state saat sesi kadaluarsa atau logout
-        setCurrentUser(null);
-        setNotes([]);
-        setIsLocked(false);
+        // 3. Reset Total: Hanya bersihkan jika benar-benar logout atau sesi INITIAL_SESSION kosong
+        if (event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') {
+          setCurrentUser(null);
+          setNotes([]);
+          setIsLocked(false);
+        }
       }
       setIsDataLoaded(true);
     });
@@ -570,7 +571,9 @@ const App: React.FC = () => {
       {/* Auth Modal */}
       {isAuthModalOpen && (
         <AuthModal
-          onLogin={(user) => setCurrentUser(user)}
+          onLogin={() => {
+            setIsAuthModalOpen(false);
+          }}
           onClose={() => setIsAuthModalOpen(false)}
         />
       )}
