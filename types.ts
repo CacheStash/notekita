@@ -1,11 +1,14 @@
-
-export type NoteCategory = 'Password' | 'ToDo' | 'Idea' | 'General' | 'Personal';
+export interface Category {
+  id: string;
+  name: string;
+  user_id: string;
+}
 
 export interface Note {
   id: string;
   title: string;
   content: string;
-  category: NoteCategory;
+  category: string; // Sekarang merujuk pada nama kategori dinamis
   isPrivate: boolean;
   createdAt: number;
   updatedAt: number;
@@ -20,7 +23,6 @@ export interface User {
   id: string;
   username: string;
   isPinEnabled: boolean;
-  
   pin?: string;
   isContentHidden: boolean;
 }
@@ -29,4 +31,5 @@ export interface AppState {
   notes: Note[];
   theme: Theme;
   user: User | null;
+  categories: Category[]; // Menambahkan state kategori global
 }
