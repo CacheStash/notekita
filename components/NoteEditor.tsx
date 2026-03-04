@@ -8,7 +8,6 @@ interface NoteEditorProps {
   onClose: () => void;
 }
 
-// Komponen Pembantu: Textarea yang menyesuaikan tinggi otomatis dengan dukungan keyboard navigation
 const AutoResizeTextarea: React.FC<{ 
   value: string; 
   onChange: (val: string) => void; 
@@ -26,7 +25,6 @@ const AutoResizeTextarea: React.FC<{
     }
   };
 
-  // Gunakan useLayoutEffect untuk kalkulasi DOM yang lebih efisien dan tanpa flickering
   React.useLayoutEffect(() => {
     adjustHeight();
   }, [value]);
@@ -49,19 +47,18 @@ const AutoResizeTextarea: React.FC<{
 
 export const NoteEditor: React.FC<NoteEditorProps> = ({ note, onSave, onClose }) => {
   const [title, setTitle] = useState(note?.title || '');
-  // State utama menggunakan array blocks untuk manajemen fokus paragraf yang presisi
   const [blocks, setBlocks] = useState<string[]>(['']);
   const [category, setCategory] = useState<string>(note?.category || 'General');
   const [isPrivate, setIsPrivate] = useState(note?.isPrivate || false);
+  const [showToast, setShowToast] = useState(false);
   
-  // State Kategori Dinamis
   const [availableCategories, setAvailableCategories] = useState<{id: string, name: string}[]>([]);
   const [isManaging, setIsManaging] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   
   const textareaRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
 
-  // Gunakan useCallback agar props ke AutoResizeTextarea (React.memo) tetap stabil
+  // FIXED: Hanya satu set handler menggunakan useCallback untuk stabilitas performa
   const updateBlock = React.useCallback((index: number, newValue: string) => {
     setBlocks(prev => {
       const newBlocks = [...prev];
@@ -79,17 +76,13 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ note, onSave, onClose })
       if (value.endsWith('\n') && cursorPos === value.length) {
         e.preventDefault();
         const cleanedBlock = value.replace(/\n$/, '');
-        
         setBlocks(prev => {
           const newBlocks = [...prev];
           newBlocks[index] = cleanedBlock;
           newBlocks.splice(index + 1, 0, '');
           return newBlocks;
         });
-
-        setTimeout(() => {
-          textareaRefs.current[index + 1]?.focus();
-        }, 0);
+        setTimeout(() => textareaRefs.current[index + 1]?.focus(), 0);
       }
     }
 
@@ -101,7 +94,6 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ note, onSave, onClose })
         const prevContent = newBlocks[index - 1];
         newBlocks[index - 1] = prevContent + currentContent;
         newBlocks.splice(index, 1);
-        
         setTimeout(() => {
           const prevEl = textareaRefs.current[index - 1];
           if (prevEl) {
@@ -109,13 +101,11 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ note, onSave, onClose })
             prevEl.setSelectionRange(prevContent.length, prevContent.length);
           }
         }, 0);
-
         return newBlocks;
       });
     }
   }, []);
 
-  // Muat Kategori dari Database
   const fetchCats = async () => {
     const { data: { user: authUser } } = await supabase.auth.getUser();
     if (authUser) {
@@ -137,10 +127,10 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ note, onSave, onClose })
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    alert('Disalin!');
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 1500);
   };
 
-  // Logic Manage Kategori
   const addCategory = async () => {
     if (!newCatName.trim()) return;
     const { data: { user: authUser } } = await supabase.auth.getUser();
@@ -169,7 +159,14 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ note, onSave, onClose })
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-zinc-900 w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-200 dark:border-zinc-800 overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-white dark:bg-zinc-900 w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-200 dark:border-zinc-800 overflow-hidden flex flex-col max-h-[90vh] relative">
+        
+        {showToast && (
+          <div className="absolute top-10 left-1/2 -translate-x-1/2 z-[100] bg-indigo-600 text-white px-6 py-2 rounded-full text-xs font-bold shadow-2xl animate-in fade-in zoom-in slide-in-from-top-4 duration-300">
+            ✅ Berhasil disalin!
+          </div>
+        )}
+
         <form onSubmit={handleSave} className="p-8 flex flex-col h-full overflow-hidden">
           <div className="flex justify-between items-center mb-6 shrink-0">
             <h2 className="text-xl font-serif font-bold italic dark:text-white">{note ? 'Sunting' : 'Baru'}</h2>

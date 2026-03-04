@@ -17,6 +17,8 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, user, viewMode = 'grid
     return sessionStorage.getItem("notekita_unlocked") === "true";
   });
 
+  const [showToast, setShowToast] = useState(false); // State baru untuk toast
+
   useEffect(() => {
     if (user?.isContentHidden) setShowSensitive(false);
   }, [user?.isContentHidden]);
@@ -43,7 +45,8 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, user, viewMode = 'grid
 
   const handleCopy = () => {
     navigator.clipboard.writeText(note.content);
-    alert('✅ Konten disalin ke clipboard!');
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 2000); // Hilang otomatis dalam 2 detik
   };
 
   const categoryColors: Record<string, string> = {
@@ -55,7 +58,15 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, user, viewMode = 'grid
   };
 
   return (
-    <div className={`group bg-white dark:bg-zinc-900 rounded-3xl border border-slate-200 dark:border-zinc-800 p-6 flex flex-col transition-all duration-300 hover:shadow-xl ${viewMode === 'list' ? 'flex-row items-center py-4' : 'space-y-4'}`}>
+    <div className={`group bg-white dark:bg-zinc-900 rounded-3xl border border-slate-200 dark:border-zinc-800 p-6 flex flex-col transition-all duration-300 hover:shadow-xl relative ${viewMode === 'list' ? 'flex-row items-center py-4' : 'space-y-4'}`}>
+      
+      {/* UI Toast Pop-out */}
+      {showToast && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[50] bg-emerald-500 text-white px-4 py-1.5 rounded-full text-[10px] font-bold shadow-lg animate-in fade-in zoom-in slide-in-from-top-2 duration-300">
+          ✅ Berhasil Disalin
+        </div>
+      )}
+
       <div className="flex-1">
         <div className="flex flex-col space-y-2">
           <div className="flex items-center justify-between">
@@ -78,7 +89,6 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, user, viewMode = 'grid
           </div>
           <h3 className="text-lg font-bold font-serif dark:text-white line-clamp-1">{note.title}</h3>
           
-          {/* INFORMASI TANGGAL (MODIFIKASI TERAKHIR) */}
           <div className="flex items-center justify-between mt-1">
             <p className="text-[9px] text-slate-400 dark:text-zinc-500 uppercase font-bold tracking-tighter">
               Dibuat: {new Date(note.createdAt).toLocaleDateString('id-ID')}

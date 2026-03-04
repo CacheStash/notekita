@@ -510,11 +510,11 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center justify-between overflow-x-auto no-scrollbar pb-2 -mx-4 px-4 md:mx-0 md:px-0">
-            <div className="flex space-x-2">
+          <div className="flex flex-wrap items-center gap-2 md:justify-between md:overflow-x-auto md:no-scrollbar md:pb-2 md:-mx-4 md:px-4 lg:mx-0 lg:px-0">
+            <div className="flex flex-wrap md:flex-nowrap gap-2 md:space-x-2">
               <button
                 onClick={() => setFilter('All')}
-                className={`whitespace-nowrap px-5 py-2 rounded-full text-xs font-semibold transition-all ${
+                className={`whitespace-nowrap px-3 py-1.5 md:px-5 md:py-2 rounded-full text-[10px] md:text-xs font-semibold transition-all ${
                   filter === 'All'
                     ? 'bg-slate-900 text-white dark:bg-white dark:text-zinc-900'
                     : 'bg-white text-slate-500 border border-slate-200 dark:bg-zinc-900 dark:text-zinc-400 dark:border-zinc-800 hover:border-slate-300'
@@ -526,7 +526,7 @@ const App: React.FC = () => {
                 <button
                   key={cat.id}
                   onClick={() => setFilter(cat.name)}
-                  className={`whitespace-nowrap px-5 py-2 rounded-full text-xs font-semibold transition-all ${
+                  className={`whitespace-nowrap px-3 py-1.5 md:px-5 md:py-2 rounded-full text-[10px] md:text-xs font-semibold transition-all ${
                     filter === cat.name
                       ? 'bg-slate-900 text-white dark:bg-white dark:text-zinc-900'
                       : 'bg-white text-slate-500 border border-slate-200 dark:bg-zinc-900 dark:text-zinc-400 dark:border-zinc-800 hover:border-slate-300'
