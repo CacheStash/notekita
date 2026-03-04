@@ -25,6 +25,7 @@ const AutoResizeTextarea: React.FC<{
     }
   };
 
+  // Gunakan useLayoutEffect agar perubahan tinggi sinkron dengan render (mencegah teks terpotong visual)
   React.useLayoutEffect(() => {
     adjustHeight();
   }, [value]);
@@ -40,7 +41,7 @@ const AutoResizeTextarea: React.FC<{
       onKeyDown={onKeyDown}
       placeholder={placeholder}
       rows={1}
-      className="w-full bg-transparent resize-none overflow-hidden focus:outline-none dark:text-zinc-300 text-sm leading-relaxed py-1"
+      className="w-full bg-transparent resize-none overflow-hidden focus:outline-none text-slate-900 dark:text-zinc-100 text-sm leading-relaxed py-1"
     />
   );
 });
@@ -50,7 +51,6 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ note, onSave, onClose })
   const [blocks, setBlocks] = useState<string[]>(['']);
   const [category, setCategory] = useState<string>(note?.category || 'General');
   const [isPrivate, setIsPrivate] = useState(note?.isPrivate || false);
-  const [showToast, setShowToast] = useState(false);
   
   const [availableCategories, setAvailableCategories] = useState<{id: string, name: string}[]>([]);
   const [isManaging, setIsManaging] = useState(false);
@@ -58,7 +58,6 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ note, onSave, onClose })
   
   const textareaRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
 
-  // FIXED: Hanya satu set handler menggunakan useCallback untuk stabilitas performa
   const updateBlock = React.useCallback((index: number, newValue: string) => {
     setBlocks(prev => {
       const newBlocks = [...prev];
@@ -94,6 +93,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ note, onSave, onClose })
         const prevContent = newBlocks[index - 1];
         newBlocks[index - 1] = prevContent + currentContent;
         newBlocks.splice(index, 1);
+        
         setTimeout(() => {
           const prevEl = textareaRefs.current[index - 1];
           if (prevEl) {
@@ -106,30 +106,22 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ note, onSave, onClose })
     }
   }, []);
 
-  const fetchCats = async () => {
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    if (authUser) {
-      const { data } = await supabase.from('notekita_categories').select('*').eq('user_id', authUser.id).order('name');
-      if (data) setAvailableCategories(data);
-    }
-  };
-
   useEffect(() => {
+    const fetchCats = async () => {
+      const { data } = await supabase.from('notekita_categories').select('*').order('name');
+      if (data) setAvailableCategories(data);
+    };
     fetchCats();
+
     if (note) {
       setTitle(note.title);
-      const initialBlocks = note.content.split(/\n\n/).filter(b => b !== '');
+      // Membagi konten berdasarkan double newline tanpa menghapus baris kosong (Agar Full Text)
+      const initialBlocks = note.content.split(/\n\n/);
       setBlocks(initialBlocks.length > 0 ? initialBlocks : ['']);
       setCategory(note.category);
       setIsPrivate(note.isPrivate);
     }
   }, [note]);
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 1500);
-  };
 
   const addCategory = async () => {
     if (!newCatName.trim()) return;
@@ -152,48 +144,42 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ note, onSave, onClose })
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    const finalContent = blocks.map(b => b.trim()).filter(b => b !== '').join('\n\n');
+    // Menggabungkan kembali tanpa membuang konten kosong (Unlimited Text Integrity)
+    const finalContent = blocks.join('\n\n');
     onSave({ id: note?.id, title, content: finalContent, category, isPrivate });
     onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-zinc-900 w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-200 dark:border-zinc-800 overflow-hidden flex flex-col max-h-[90vh] relative">
-        
-        {showToast && (
-          <div className="absolute top-10 left-1/2 -translate-x-1/2 z-[100] bg-indigo-600 text-white px-6 py-2 rounded-full text-xs font-bold shadow-2xl animate-in fade-in zoom-in slide-in-from-top-4 duration-300">
-            ✅ Berhasil disalin!
-          </div>
-        )}
-
+      <div className="bg-white dark:bg-zinc-900 w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-200 dark:border-zinc-800 overflow-hidden flex flex-col max-h-[90vh]">
         <form onSubmit={handleSave} className="p-8 flex flex-col h-full overflow-hidden">
           <div className="flex justify-between items-center mb-6 shrink-0">
             <h2 className="text-xl font-serif font-bold italic dark:text-white">{note ? 'Sunting' : 'Baru'}</h2>
-            <div className="flex items-center space-x-2">
-              <button type="button" onClick={() => copyToClipboard(blocks.join('\n\n'))} className="flex items-center space-x-2 px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-indigo-500 bg-slate-50 dark:bg-zinc-800 rounded-xl transition-all border border-slate-100 dark:border-zinc-700">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" /></svg>
-                <span>Copy All</span>
-              </button>
-              <button type="button" onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-full transition-colors"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-slate-400"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
-            </div>
+            <button type="button" onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-full transition-colors text-slate-400">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-6">
-            <input type="text" placeholder="Judul Catatan..." value={title} onChange={(e) => setTitle(e.target.value)} className="w-full bg-transparent text-2xl font-bold focus:outline-none dark:text-white border-b border-transparent focus:border-indigo-500 py-2" />
+          {/* pb-40 memastikan block terakhir bisa di-scroll sampai ke atas modal */}
+          <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-6 pb-40">
+            <input 
+              type="text" 
+              placeholder="Judul Catatan..." 
+              value={title} 
+              onChange={(e) => setTitle(e.target.value)} 
+              className="w-full bg-transparent text-2xl font-bold focus:outline-none dark:text-white border-b border-transparent focus:border-indigo-500 py-2" 
+            />
             <div className="space-y-4">
               {blocks.map((block, index) => (
                 <React.Fragment key={index}>
-                  <div className="group relative flex items-start space-x-3">
-                    <div className="flex-1">
-                      <AutoResizeTextarea innerRef={(el) => { textareaRefs.current[index] = el; }} value={block} onChange={(val) => updateBlock(index, val)} onKeyDown={(e) => handleKeyDown(index, e)} placeholder={index === 0 ? "Mulai menulis..." : ""} />
-                    </div>
-                    {block.trim() !== '' && (
-                      <button type="button" onClick={() => copyToClipboard(block)} className="mt-1 p-1.5 text-slate-300 hover:text-indigo-500 bg-slate-50 dark:bg-zinc-800 rounded-lg border border-slate-100 dark:border-zinc-700 opacity-0 group-hover:opacity-100 transition-all shadow-sm shrink-0">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3.5 h-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" /></svg>
-                      </button>
-                    )}
-                  </div>
+                  <AutoResizeTextarea 
+                    innerRef={(el) => { textareaRefs.current[index] = el; }} 
+                    value={block} 
+                    onChange={(val) => updateBlock(index, val)} 
+                    onKeyDown={(e) => handleKeyDown(index, e)} 
+                    placeholder={index === 0 ? "Mulai menulis tanpa batas karakter..." : ""} 
+                  />
                   {index < blocks.length - 1 && block.trim() !== '' && (
                     <div className="relative py-2 flex items-center justify-center select-none pointer-events-none">
                       <div className="w-full border-t border-dashed border-slate-100 dark:border-zinc-800" />
@@ -205,7 +191,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ note, onSave, onClose })
             </div>
           </div>
 
-          <div className="mt-6 space-y-4 shrink-0">
+          <div className="mt-6 space-y-4 shrink-0 bg-white dark:bg-zinc-900 pt-4 border-t border-slate-100 dark:border-zinc-800">
             <div className="flex flex-wrap items-center gap-2">
               {availableCategories.map((cat) => (
                 <div key={cat.id} className="group relative">
@@ -229,7 +215,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ note, onSave, onClose })
               </div>
             )}
 
-            <button type="submit" disabled={!blocks.some(b => b.trim() !== '')} className="w-full bg-slate-900 dark:bg-white dark:text-slate-900 text-white py-4 rounded-2xl font-bold hover:opacity-90 disabled:opacity-30 shadow-xl transition-all">Simpan Catatan</button>
+            <button type="submit" className="w-full bg-slate-900 dark:bg-zinc-100 dark:text-zinc-900 text-white py-4 rounded-2xl font-bold hover:opacity-90 shadow-xl transition-all">Simpan Catatan</button>
           </div>
         </form>
       </div>
