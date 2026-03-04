@@ -494,7 +494,23 @@ const App: React.FC = () => {
         
         {/* Categories Bar & Controls */}
         <div className="flex flex-col space-y-4 mb-8">
-          <div className="flex items-center justify-between overflow-x-auto no-scrollbar pb-2">
+          {/* Mobile Search Bar - Muncul hanya di layar kecil */}
+          <div className="md:hidden mb-2">
+            <div className="flex bg-white dark:bg-zinc-900 rounded-2xl px-4 py-3 items-center border border-slate-200 dark:border-zinc-800 shadow-sm focus-within:ring-2 focus-within:ring-indigo-500 transition-all">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-slate-400 mr-3">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+              </svg>
+              <input 
+                type="text" 
+                placeholder="Cari catatan kamu..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="bg-transparent text-sm focus:outline-none flex-1 dark:text-zinc-300"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between overflow-x-auto no-scrollbar pb-2 -mx-4 px-4 md:mx-0 md:px-0">
             <div className="flex space-x-2">
               <button
                 onClick={() => setFilter('All')}
