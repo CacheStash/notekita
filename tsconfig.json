@@ -20,9 +20,12 @@
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
 
-    "baseUrl": ".",
+    /* Silencing Deprecation Warning */
+    "ignoreDeprecations": "5.0",
+
+    /* Path Aliases */
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./src/*"]
     },
     "types": ["node", "vite/client"]
   },

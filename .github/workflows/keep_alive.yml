@@ -10,19 +10,24 @@ jobs:
   supabase_activity:
     runs-on: ubuntu-latest
     steps:
-      - name: Insert Dummy Data & Cleanup
+      - name: Run Activity
+        env:
+          # Masukkan info langsung di sini agar tidak tergantung pada GitHub Secrets
+          MY_URL: "https://pkgonawrwiekmnxbauew.supabase.co"
+          MY_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBrZ29uYXdyd2lla21ueGJhdWV3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk4Mzk5NTgsImV4cCI6MjA4NTQxNTk1OH0.Rp6oyRkAr864Mzw_9Pk8hl8w_QsjwIkLiw56mbDf6Aw"
         run: |
           # 1. Insert data baru ke tabel
-          curl -X POST "${{ secrets.SUPABASE_URL }}/rest/v1/keep_alive_ping" \
-          -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-          -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+          echo "Inserting dummy data..."
+          curl -X POST "$MY_URL/rest/v1/keep_alive_ping" \
+          -H "apikey: $MY_KEY" \
+          -H "Authorization: Bearer $MY_KEY" \
           -H "Content-Type: application/json" \
           -d '[{}]'
 
-          # 2. Hapus data yang lebih lama dari 3 hari (agar tidak penuh)
-          # Kita pakai operator 'lt' (less than) dengan ISO8601 date dari shell
+          # 2. Hapus data yang lebih lama dari 3 hari
+          echo "Cleaning up old data..."
           THREE_DAYS_AGO=$(date -u -d "3 days ago" +%Y-%m-%dT%H:%M:%SZ)
           
-          curl -X DELETE "${{ secrets.SUPABASE_URL }}/rest/v1/keep_alive_ping?created_at=lt.${THREE_DAYS_AGO}" \
-          -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-          -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}"
+          curl -X DELETE "$MY_URL/rest/v1/keep_alive_ping?created_at=lt.${THREE_DAYS_AGO}" \
+          -H "apikey: $MY_KEY" \
+          -H "Authorization: Bearer $MY_KEY"
