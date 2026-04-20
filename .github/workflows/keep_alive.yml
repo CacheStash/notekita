@@ -4,30 +4,34 @@ on:
   schedule:
     # Berjalan setiap hari jam 00:00 UTC
     - cron: '0 0 * * *'
-  workflow_dispatch:
+  workflow_dispatch: # Supaya bisa kamu klik tombol "Run Workflow" buat ngetes
 
 jobs:
   supabase_activity:
     runs-on: ubuntu-latest
     steps:
-      - name: Run Activity
-        env:
-          # Masukkan info langsung di sini agar tidak tergantung pada GitHub Secrets
-          MY_URL: "https://pkgonawrwiekmnxbauew.supabase.co"
-          MY_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBrZ29uYXdyd2lla21ueGJhdWV3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk4Mzk5NTgsImV4cCI6MjA4NTQxNTk1OH0.Rp6oyRkAr864Mzw_9Pk8hl8w_QsjwIkLiw56mbDf6Aw"
+      - name: Eksekusi Ping Database
         run: |
-          # 1. Insert data baru ke tabel
-          echo "Inserting dummy data..."
-          curl -X POST "$MY_URL/rest/v1/keep_alive_ping" \
-          -H "apikey: $MY_KEY" \
-          -H "Authorization: Bearer $MY_KEY" \
+          # Kita definisikan variabel lokal di sini biar gampang
+          URL="https://pkgonawrwiekmnxbauew.supabase.co"
+          KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBrZ29uYXdyd2lla21ueGJhdWV3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk4Mzk5NTgsImV4cCI6MjA4NTQxNTk1OH0.Rp6oyRkAr864Mzw_9Pk8hl8w_QsjwIkLiw56mbDf6Aw"
+
+          echo "--- MEMULAI PROSES KEEP ALIVE ---"
+
+          # 1. INSERT DATA (Activity: WRITE)
+          echo "Step 1: Memasukkan data dummy..."
+          curl -X POST "$URL/rest/v1/keep_alive_ping" \
+          -H "apikey: $KEY" \
+          -H "Authorization: Bearer $KEY" \
           -H "Content-Type: application/json" \
           -d '[{}]'
 
-          # 2. Hapus data yang lebih lama dari 3 hari
-          echo "Cleaning up old data..."
+          # 2. DELETE DATA LAMA (Activity: DELETE)
+          echo "Step 2: Menghapus data lama (biar gak penuh)..."
           THREE_DAYS_AGO=$(date -u -d "3 days ago" +%Y-%m-%dT%H:%M:%SZ)
           
-          curl -X DELETE "$MY_URL/rest/v1/keep_alive_ping?created_at=lt.${THREE_DAYS_AGO}" \
-          -H "apikey: $MY_KEY" \
-          -H "Authorization: Bearer $MY_KEY"
+          curl -X DELETE "$URL/rest/v1/keep_alive_ping?created_at=lt.${THREE_DAYS_AGO}" \
+          -H "apikey: $KEY" \
+          -H "Authorization: Bearer $KEY"
+
+          echo "--- SELESAI ---"
