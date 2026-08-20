@@ -354,6 +354,53 @@ const App: React.FC = () => {
     }
   };
 
+  const handleImportNotes = async (importedNotes: Note[]) => {
+    if (!currentUser) {
+      alert("Anda harus login terlebih dahulu.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const inserts = importedNotes.map(n => ({
+        user_id: currentUser.id,
+        title: n.title,
+        content: n.content,
+        category: n.category || 'General',
+        is_private: n.isPrivate ?? false,
+        created_at: new Date(n.createdAt || Date.now()).toISOString(),
+        updated_at: new Date(n.updatedAt || Date.now()).toISOString()
+      }));
+
+      const { data, error } = await supabase
+        .from('notekita_notes')
+        .insert(inserts)
+        .select();
+
+      if (error) throw error;
+
+      if (data) {
+        const mappedInserted: Note[] = data.map(d => ({
+          id: d.id,
+          title: d.title,
+          content: d.content,
+          category: d.category,
+          isPrivate: d.is_private,
+          createdAt: new Date(d.created_at).getTime(),
+          updatedAt: new Date(d.updated_at).getTime()
+        }));
+
+        setNotes(prev => [...mappedInserted, ...prev]);
+        alert(`✅ Berhasil mengimpor ${mappedInserted.length} catatan!`);
+      }
+    } catch (err: any) {
+      console.error("Gagal mengimpor catatan:", err);
+      alert("❌ Gagal mengimpor catatan: " + (err.message || "Kesalahan database"));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const filteredNotes = useMemo(() => {
     return notes
       .filter(n => filter === 'All' || n.category === filter)
@@ -659,6 +706,8 @@ const App: React.FC = () => {
       {isSettingsModalOpen && currentUser && (
         <SettingsModal
           user={currentUser}
+          notes={notes}
+          onImportNotes={handleImportNotes}
           onUpdateUser={(updatedUser) => setCurrentUser(updatedUser)}
           onLogout={handleLogout}
           onClose={() => setIsSettingsModalOpen(false)}
