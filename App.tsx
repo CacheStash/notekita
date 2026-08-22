@@ -42,7 +42,20 @@ const LockScreen = ({
   };
 
   const handleDelete = () => setInput((prev) => prev.slice(0, -1));
+useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (/^[0-9]$/.test(e.key)) {
+        handlePress(e.key);
+      } else if (e.key === 'Backspace' || e.key === 'Delete') {
+        handleDelete();
+      }
+    };
 
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [input, correctPin]);
   return (
     <div className="fixed inset-0 z-[100] bg-zinc-950 flex flex-col items-center justify-center p-6 animate-in fade-in duration-300">
       <div className="mb-8 flex flex-col items-center">
