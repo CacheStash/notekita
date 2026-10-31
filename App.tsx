@@ -134,12 +134,44 @@ const App: React.FC = () => {
       .order('name');
     
     if (data && data.length > 0) {
-      setCategories(data);
+      const seen = new Set<string>();
+      const unique: { id: string; name: string }[] = [];
+      const duplicateIds: string[] = [];
+
+      for (const item of data) {
+        const normalized = item.name ? item.name.trim().toLowerCase() : '';
+        if (!normalized) continue;
+        if (seen.has(normalized)) {
+          duplicateIds.push(item.id);
+        } else {
+          seen.add(normalized);
+          unique.push({ id: item.id, name: item.name.trim() });
+        }
+      }
+
+      setCategories(unique);
+
+      if (duplicateIds.length > 0) {
+        supabase.from('notekita_categories').delete().in('id', duplicateIds).then(() => {
+          console.log(`Pruned ${duplicateIds.length} duplicate categories from database.`);
+        });
+      }
     } else {
       const defaults = ['General', 'Password', 'ToDo', 'Idea', 'Personal'];
       const inserts = defaults.map(name => ({ user_id: userId, name }));
       const { data: newData } = await supabase.from('notekita_categories').insert(inserts).select();
-      if (newData) setCategories(newData);
+      if (newData) {
+        const seen = new Set<string>();
+        const unique: { id: string; name: string }[] = [];
+        for (const item of newData) {
+          const lower = item.name.trim().toLowerCase();
+          if (!seen.has(lower)) {
+            seen.add(lower);
+            unique.push(item);
+          }
+        }
+        setCategories(unique);
+      }
     }
   };
 
@@ -704,6 +736,10 @@ const App: React.FC = () => {
       {isEditorOpen && (
         <NoteEditor
           note={editingNote}
+          categories={categories}
+          onCategoriesChange={() => {
+            if (currentUser) loadCategories(currentUser.id);
+          }}
           onSave={saveNote}
           onClose={() => { setIsEditorOpen(false); setEditingNote(null); }}
         />
@@ -723,7 +759,10 @@ const App: React.FC = () => {
           onImportNotes={handleImportNotes}
           onUpdateUser={(updatedUser) => setCurrentUser(updatedUser)}
           onLogout={handleLogout}
-          onClose={() => setIsSettingsModalOpen(false)}
+          onClose={() => {
+            setIsSettingsModalOpen(false);
+            if (currentUser) loadCategories(currentUser.id);
+          }}
         />
       )}
 
