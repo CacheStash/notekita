@@ -184,8 +184,10 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       // Membagi konten berdasarkan double newline tanpa menghapus baris kosong (Agar Full Text)
       const initialBlocks = note.content ? note.content.split(/\n\n/) : [''];
       setBlocks(initialBlocks.length > 0 ? initialBlocks : ['']);
-      setCategory(note.category || 'General');
-      setIsPrivate(note.isPrivate || false);
+      const cat = note.category || 'General';
+      setCategory(cat);
+      const isPass = cat.toLowerCase() === 'password' || cat.toLowerCase() === 'pass';
+      setIsPrivate(note.isPrivate || isPass);
     } else {
       setTitle('');
       setBlocks(['']);
@@ -261,7 +263,9 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     e.preventDefault();
     // Menggabungkan kembali tanpa membuang konten kosong (Unlimited Text Integrity)
     const finalContent = blocks.join('\n\n');
-    onSave({ id: note?.id, title, content: finalContent, category, isPrivate });
+    const isPass = category.toLowerCase() === 'password' || category.toLowerCase() === 'pass';
+    const finalIsPrivate = isPrivate || isPass;
+    onSave({ id: note?.id, title, content: finalContent, category, isPrivate: finalIsPrivate });
     onClose();
   };
 
@@ -335,7 +339,13 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
                 <div key={cat.id} className="group relative">
                   <button 
                     type="button" 
-                    onClick={() => setCategory(cat.name)} 
+                    onClick={() => {
+                      setCategory(cat.name);
+                      const isPass = cat.name.toLowerCase() === 'password' || cat.name.toLowerCase() === 'pass';
+                      if (isPass) {
+                        setIsPrivate(true);
+                      }
+                    }} 
                     className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border ${
                       category.toLowerCase() === cat.name.toLowerCase() 
                         ? 'bg-indigo-600 text-white border-indigo-600' 
