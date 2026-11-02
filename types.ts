@@ -27,6 +27,21 @@ export interface User {
   isContentHidden: boolean;
 }
 
+export interface PasswordHistoryItem {
+  id: string;
+  password: string;
+  createdAt: number;
+}
+
+export interface PasswordAccount {
+  id: string;
+  email: string;
+  service?: string;
+  history: PasswordHistoryItem[];
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface AppState {
   notes: Note[];
   theme: Theme;

@@ -6,6 +6,7 @@ import { NoteEditor } from './components/NoteEditor';
 import { AuthModal } from './components/AuthModal';
 import { SettingsModal } from './components/SettingsModal';
 import { Calendar } from './components/Calendar';
+import { PasswordVault } from './components/PasswordVault';
 import { supabase } from "./services/supabase";
 
 const LockScreen = ({
@@ -294,6 +295,7 @@ const App: React.FC = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [isPasswordVaultOpen, setIsPasswordVaultOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [filter, setFilter] = useState<string>('All'); 
   const [searchQuery, setSearchQuery] = useState('');
@@ -446,8 +448,28 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSearchInput = (val: string) => {
+    const trimmed = val.trim().toLowerCase();
+    if (trimmed === '/pass' || trimmed === '/password') {
+      setSearchQuery('');
+      if (currentUser?.isPinEnabled && currentUser.pin && !hasUnlockedSession) {
+        const entered = window.prompt('Enter PIN to access Password Vault:');
+        if (entered === currentUser.pin) {
+          setIsPasswordVaultOpen(true);
+        } else if (entered !== null) {
+          alert('⚠️ Incorrect PIN!');
+        }
+      } else {
+        setIsPasswordVaultOpen(true);
+      }
+      return;
+    }
+    setSearchQuery(val);
+  };
+
   const filteredNotes = useMemo(() => {
     return notes
+      .filter(n => n.category !== '__vault_password__')
       .filter(n => filter === 'All' || n.category === filter)
       .filter(n => 
         n.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -522,7 +544,7 @@ const App: React.FC = () => {
                 type="text" 
                 placeholder="Search notes..." 
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => handleSearchInput(e.target.value)}
                 className="bg-transparent text-xs focus:outline-none w-32 lg:w-48 text-slate-800 dark:text-zinc-200 placeholder:text-slate-400 dark:placeholder:text-zinc-500"
               />
             </div>
@@ -596,7 +618,7 @@ const App: React.FC = () => {
                 type="text" 
                 placeholder="Search notes..." 
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => handleSearchInput(e.target.value)}
                 className="bg-transparent text-sm focus:outline-none flex-1 text-slate-800 dark:text-zinc-200 placeholder:text-slate-400 dark:placeholder:text-zinc-500"
               />
             </div>
@@ -772,6 +794,13 @@ const App: React.FC = () => {
           notes={notes}
           onSelectDate={(date) => setDateFilter(date)}
           onClose={() => setIsCalendarOpen(false)}
+        />
+      )}
+
+      {isPasswordVaultOpen && (
+        <PasswordVault
+          user={currentUser}
+          onClose={() => setIsPasswordVaultOpen(false)}
         />
       )}
 
